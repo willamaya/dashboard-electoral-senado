@@ -5,7 +5,39 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+import hmac
 
+def check_password():
+
+    def password_entered():
+        usuario_ok = hmac.compare_digest(
+            st.session_state.get("username", ""),
+            st.secrets["auth"]["username"],
+        )
+
+        password_ok = hmac.compare_digest(
+            st.session_state.get("password", ""),
+            st.secrets["auth"]["password"],
+        )
+
+        if usuario_ok and password_ok:
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if st.session_state.get("password_correct", False):
+        return True
+
+    st.title("Acceso al Dashboard Electoral")
+
+    st.text_input("Usuario", key="username")
+    st.text_input("Contraseña", type="password", key="password", on_change=password_entered)
+
+    if "password_correct" in st.session_state and not st.session_state["password_correct"]:
+        st.error("Usuario o contraseña incorrectos")
+
+    return False
 
 st.set_page_config(
     page_title="Dashboard Electoral Senado",
@@ -386,6 +418,8 @@ def render_charts(df: pd.DataFrame):
 
 
 def main():
+    if not check_password():
+    st.stop()
     st.title("🗳️ Dashboard interactivo de resultados electorales")
     st.write(
         "Este dashboard analiza resultados de Senado por territorio y genera insights tácticos. "
