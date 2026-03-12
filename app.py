@@ -1,14 +1,23 @@
 import io
 from pathlib import Path
+import hmac
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-import hmac
+
+
+st.set_page_config(
+    page_title="Dashboard Electoral Senado",
+    page_icon="🗳️",
+    layout="wide",
+)
+
+DEFAULT_FILE = Path("john_amaya_senado_20260309_235536.csv")
+
 
 def check_password():
-
     def password_entered():
         usuario_ok = hmac.compare_digest(
             st.session_state.get("username", ""),
@@ -22,7 +31,8 @@ def check_password():
 
         if usuario_ok and password_ok:
             st.session_state["password_correct"] = True
-            del st.session_state["password"]
+            if "password" in st.session_state:
+                del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
 
@@ -30,7 +40,6 @@ def check_password():
         return True
 
     st.title("Acceso al Dashboard Electoral")
-
     st.text_input("Usuario", key="username")
     st.text_input("Contraseña", type="password", key="password", on_change=password_entered)
 
@@ -38,14 +47,6 @@ def check_password():
         st.error("Usuario o contraseña incorrectos")
 
     return False
-
-st.set_page_config(
-    page_title="Dashboard Electoral Senado",
-    page_icon="🗳️",
-    layout="wide",
-)
-
-DEFAULT_FILE = Path("john_amaya_senado_20260309_235536.csv")
 
 
 @st.cache_data
@@ -178,7 +179,11 @@ def apply_filters(df: pd.DataFrame):
 
     for optional_col in get_optional_geo_levels(filtered):
         values = sorted(filtered[optional_col].dropna().astype(str).unique().tolist())
-        selected = st.sidebar.multiselect(optional_col.replace("_", " ").title(), options=values, default=values)
+        selected = st.sidebar.multiselect(
+            optional_col.replace("_", " ").title(),
+            options=values,
+            default=values,
+        )
         if selected:
             filtered = filtered[filtered[optional_col].astype(str).isin(selected)]
 
@@ -249,6 +254,7 @@ def aggregate_territory(df: pd.DataFrame, level: str) -> pd.DataFrame:
         agg["votos_candidato"] / agg["votos_partido_muni"],
         np.nan,
     )
+
     total_candidato = agg["votos_candidato"].sum()
     agg["peso_territorial"] = np.where(
         total_candidato > 0,
@@ -262,9 +268,12 @@ def aggregate_territory(df: pd.DataFrame, level: str) -> pd.DataFrame:
     )
 
     conditions = [
-        (agg["votos_candidato"] >= agg["votos_candidato"].quantile(0.75)) & (agg["participacion"] >= agg["participacion"].quantile(0.75)),
-        (agg["potencial_electoral"] >= agg["potencial_electoral"].quantile(0.75)) & (agg["votos_candidato"] <= agg["votos_candidato"].quantile(0.25)),
-        (agg["potencial_electoral"] >= agg["potencial_electoral"].quantile(0.75)) & (agg["participacion"] <= agg["participacion"].quantile(0.25)),
+        (agg["votos_candidato"] >= agg["votos_candidato"].quantile(0.75))
+        & (agg["participacion"] >= agg["participacion"].quantile(0.75)),
+        (agg["potencial_electoral"] >= agg["potencial_electoral"].quantile(0.75))
+        & (agg["votos_candidato"] <= agg["votos_candidato"].quantile(0.25)),
+        (agg["potencial_electoral"] >= agg["potencial_electoral"].quantile(0.75))
+        & (agg["participacion"] <= agg["participacion"].quantile(0.25)),
     ]
     choices = ["FORTALEZA", "OPORTUNIDAD", "RIESGO"]
     agg["segmento_estrategico"] = np.select(conditions, choices, default="ESTABLE")
@@ -370,9 +379,10 @@ def render_charts(df: pd.DataFrame):
         ).head(5)
 
         st.subheader("Insights automáticos")
+
         if not fuertes.empty:
             st.markdown(
-                f"**Territorios más fuertes:** "
+                "**Territorios más fuertes:** "
                 + ", ".join(
                     [
                         f"{row[level]} ({format_int(row['votos_candidato'])} votos; peso {format_pct(row['peso_territorial'])})"
@@ -380,9 +390,10 @@ def render_charts(df: pd.DataFrame):
                     ]
                 )
             )
+
         if not oportunidades.empty:
             st.markdown(
-                f"**Territorios de oportunidad:** "
+                "**Territorios de oportunidad:** "
                 + ", ".join(
                     [
                         f"{row[level]} (potencial {format_int(row['potencial_electoral'])}, votos {format_int(row['votos_candidato'])})"
@@ -390,9 +401,10 @@ def render_charts(df: pd.DataFrame):
                     ]
                 )
             )
+
         if not riesgos.empty:
             st.markdown(
-                f"**Territorios en riesgo:** "
+                "**Territorios en riesgo:** "
                 + ", ".join(
                     [
                         f"{row[level]} (participación {format_pct(row['participacion'])}, potencial {format_int(row['potencial_electoral'])})"
@@ -419,7 +431,8 @@ def render_charts(df: pd.DataFrame):
 
 def main():
     if not check_password():
-    st.stop()
+        st.stop()
+
     st.title("🗳️ Dashboard interactivo de resultados electorales")
     st.write(
         "Este dashboard analiza resultados de Senado por territorio y genera insights tácticos. "
