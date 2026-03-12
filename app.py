@@ -1,4 +1,3 @@
-import io
 from pathlib import Path
 import hmac
 
@@ -18,33 +17,31 @@ DEFAULT_FILE = Path("john_amaya_senado_20260309_235536.csv")
 
 
 def check_password():
-    if "auth" not in st.secrets:
+    auth = st.secrets.get("auth", {})
+
+    if not auth:
         st.error("No se han configurado las credenciales de acceso en Streamlit Secrets.")
-        st.info("Ve a Manage app → Settings → Secrets y agrega el bloque [auth].")
+        st.info("Ve a Manage app → Settings → Secrets y agrega:\n\n[auth]\nusername = \"admin\"\npassword = \"ClaveSegura123\"")
         return False
 
-    if "username" not in st.secrets["auth"] or "password" not in st.secrets["auth"]:
-        st.error("Faltan username o password dentro de [auth] en Streamlit Secrets.")
-        st.info("Ejemplo válido:\n\n[auth]\nusername = \"admin\"\npassword = \"ClaveSegura123\"")
+    if "username" not in auth or "password" not in auth:
+        st.error("Faltan username o password dentro del bloque [auth] en Streamlit Secrets.")
         return False
 
     def password_entered():
         usuario_ok = hmac.compare_digest(
-            st.session_state.get("username", ""),
-            st.secrets["auth"]["username"],
+            str(st.session_state.get("username", "")),
+            str(auth["username"]),
         )
-
         password_ok = hmac.compare_digest(
-            st.session_state.get("password", ""),
-            st.secrets["auth"]["password"],
+            str(st.session_state.get("password", "")),
+            str(auth["password"]),
         )
 
-        if usuario_ok and password_ok:
-            st.session_state["password_correct"] = True
-            if "password" in st.session_state:
-                del st.session_state["password"]
-        else:
-            st.session_state["password_correct"] = False
+        st.session_state["password_correct"] = usuario_ok and password_ok
+
+        if st.session_state["password_correct"] and "password" in st.session_state:
+            del st.session_state["password"]
 
     if st.session_state.get("password_correct", False):
         return True
@@ -62,10 +59,17 @@ def check_password():
 @st.cache_data
 def load_data(uploaded_file=None):
     if uploaded_file is not None:
-        return pd.read_csv(uploaded_file)
+        try:
+            return pd.read_csv(uploaded_file)
+        except Exception:
+            uploaded_file.seek(0)
+            return pd.read_csv(uploaded_file, encoding="latin-1")
 
     if DEFAULT_FILE.exists():
-        return pd.read_csv(DEFAULT_FILE)
+        try:
+            return pd.read_csv(DEFAULT_FILE)
+        except Exception:
+            return pd.read_csv(DEFAULT_FILE, encoding="latin-1")
 
     return None
 
@@ -156,6 +160,10 @@ def get_optional_geo_levels(df: pd.DataFrame):
 
 def apply_filters(df: pd.DataFrame):
     st.sidebar.header("Filtros")
+
+    if st.sidebar.button("Cerrar sesión"):
+        st.session_state["password_correct"] = False
+        st.rerun()
 
     candidatos = sorted(df["candidato"].dropna().unique().tolist()) if "candidato" in df.columns else []
     deptos = sorted(df["depto"].dropna().unique().tolist()) if "depto" in df.columns else []
