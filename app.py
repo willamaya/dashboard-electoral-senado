@@ -18,6 +18,16 @@ DEFAULT_FILE = Path("john_amaya_senado_20260309_235536.csv")
 
 
 def check_password():
+    if "auth" not in st.secrets:
+        st.error("No se han configurado las credenciales de acceso en Streamlit Secrets.")
+        st.info("Ve a Manage app → Settings → Secrets y agrega el bloque [auth].")
+        return False
+
+    if "username" not in st.secrets["auth"] or "password" not in st.secrets["auth"]:
+        st.error("Faltan username o password dentro de [auth] en Streamlit Secrets.")
+        st.info("Ejemplo válido:\n\n[auth]\nusername = \"admin\"\npassword = \"ClaveSegura123\"")
+        return False
+
     def password_entered():
         usuario_ok = hmac.compare_digest(
             st.session_state.get("username", ""),
